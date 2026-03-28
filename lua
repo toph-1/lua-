@@ -2,7 +2,7 @@
 
 echo "[GMod Tool Starting...]"
 
-# --- PATHS ---
+# --- All possible paths (USB + common Steam) ---
 POSSIBLE_PATHS=(
 "/media/ubuntu/5945a0d2-a7ce-406a-a25d-20fa70dce945/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "/media/$USER/*/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
@@ -13,6 +13,7 @@ POSSIBLE_PATHS=(
 
 GMOD_LUA=""
 
+# --- Find valid path ---
 for path in "${POSSIBLE_PATHS[@]}"; do
     for real in $path; do
         if [ -d "$real" ]; then
@@ -23,22 +24,22 @@ for path in "${POSSIBLE_PATHS[@]}"; do
 done
 
 if [ -z "$GMOD_LUA" ]; then
-    echo "[ERROR] GMod path not found"
+    echo "[ERROR] Could not find GMod lua folder"
     exit 1
 fi
 
 echo "[OK] Using: $GMOD_LUA"
 
 FILE="$GMOD_LUA/_tool.lua"
+mkdir -p "$GMOD_LUA"
 
-# --- REQUIRE xdotool ---
+# --- Require xdotool ---
 if ! command -v xdotool >/dev/null 2>&1; then
-    echo "[ERROR] xdotool is REQUIRED"
-    echo "Install it with: sudo apt install xdotool"
+    echo "[ERROR] xdotool is required. Install with: sudo apt install xdotool"
     exit 1
 fi
 
-# --- Run script ---
+# --- Run script in GMod ---
 run_gmod() {
     xdotool search --name "Garry" windowactivate 2>/dev/null
     sleep 0.5
@@ -55,26 +56,16 @@ stop_gmod() {
     xdotool key Return
 }
 
-# --- FORCE TEST SCRIPT (so we know it works) ---
+# --- Create default one-time Lua script ---
+if [ ! -f "$FILE" ]; then
 cat > "$FILE" << 'EOF'
 if CLIENT then
-    print("[TOOL] SCRIPT RAN")
+    print("[TOOL] Loaded")
 
-    local HOOK = "Tool_Test"
-    hook.Remove("Think", HOOK)
+    local HOOK = "Tool_Main"
 
-    hook.Add("Think", HOOK, function()
-        if math.random() > 0.999 then
-            print("[TOOL] Running...")
-        end
-    end)
-
-    concommand.Add("tool_stop", function()
-        hook.Remove("Think", HOOK)
-        print("[TOOL] Stopped")
-    end)
-
-    hook.Add("InitPostEntity", "Tool_UI", function()
+    -- ONE-TIME UI box
+    hook.Add("InitPostEntity", "Tool_UI_Once", function()
         local f = vgui.Create("DFrame")
         f:SetSize(200,100)
         f:SetPos(50,50)
@@ -84,44 +75,68 @@ if CLIENT then
         local b = vgui.Create("DButton", f)
         b:SetSize(160,40)
         b:SetPos(20,40)
-        b:SetText("STOP")
+        b:SetText("STOP SCRIPT")
 
         b.DoClick = function()
             RunConsoleCommand("tool_stop")
         end
+
+        print("[TOOL] Box created on screen!")
+    end)
+
+    -- ONE-TIME Think hook (executes once)
+    hook.Add("Think", HOOK, function()
+        hook.Remove("Think", HOOK)
+        print("[TOOL] Script executed one time")
+    end)
+
+    -- STOP command
+    concommand.Add("tool_stop", function()
+        hook.Remove("Think", HOOK)
+        hook.Remove("InitPostEntity", "Tool_UI_Once")
+        print("[TOOL] Stopped")
     end)
 end
 EOF
-
-echo "[INFO] Test script written"
+fi
 
 # --- Menu ---
 while true; do
     echo ""
+    echo "====== GMOD LUA TOOL ======"
     echo "1) Script"
-    echo "2) START"
-    echo "3) STOP"
+    echo "2) START Script"
+    echo "3) STOP Script"
     echo "4) Exit"
+    echo "==========================="
     read -p "Select> " CHOICE
 
     case $CHOICE in
 
         1)
+            echo "[Opening Script in nano...]"
             nano "$FILE"
         ;;
 
         2)
+            echo "[Starting Script...]"
             stop_gmod
             sleep 0.3
             run_gmod
         ;;
 
         3)
+            echo "[Stopping Script...]"
             stop_gmod
         ;;
 
         4)
+            echo "[Exiting]"
             exit 0
+        ;;
+
+        *)
+            echo "[!] Invalid option"
         ;;
 
     esac
