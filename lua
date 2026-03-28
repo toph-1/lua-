@@ -2,8 +2,12 @@
 
 echo "[GMod Tool Starting...]"
 
-# --- Find GMod path ---
+# --- ADD YOUR USB PATH HERE ---
+USB_PATH="/media/$USER/YOUR_USB_NAME/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+
+# --- Default paths ---
 POSSIBLE_PATHS=(
+"$USB_PATH"
 "$HOME/.steam/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "$HOME/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 )
@@ -18,20 +22,22 @@ done
 
 if [ -z "$GMOD_LUA" ]; then
     echo "[ERROR] Could not find GMod folder"
+    echo "Check your USB path!"
     exit 1
 fi
+
+echo "[OK] Using: $GMOD_LUA"
 
 FILE="$GMOD_LUA/_tool.lua"
 mkdir -p "$GMOD_LUA"
 
-# --- Better detection (works for more setups) ---
+# --- Better detection ---
 PID=$(pgrep -f "hl2|gmod|Garry")
 
 if [ -z "$PID" ]; then
-    echo "[WARNING] Could not confirm GMod running"
-    echo "[INFO] You can still continue"
+    echo "[WARNING] Could not detect GMod (still continuing)"
 else
-    echo "[OK] GMod detected (PID: $PID)"
+    echo "[OK] GMod running (PID: $PID)"
 fi
 
 # --- Run script ---
@@ -49,7 +55,7 @@ run_gmod() {
     fi
 }
 
-# --- Stop script ---
+# --- Stop ---
 stop_gmod() {
     if command -v xdotool >/dev/null 2>&1; then
         xdotool key grave
@@ -79,7 +85,7 @@ while true; do
         ;;
 
         2)
-            read -p "Enter number (e.g. 300): " VAL
+            read -p "Enter number: " VAL
 
             if ! [[ "$VAL" =~ ^[0-9]+$ ]]; then
                 echo "[!] Invalid number"
