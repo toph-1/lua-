@@ -2,27 +2,30 @@
 
 echo "[GMod Tool Starting...]"
 
-# --- ADD YOUR USB PATH HERE ---
-USB_PATH="/media/$USER/YOUR_USB_NAME/steamapps/common/GarrysMod/garrysmod/lua/autorun"
-
-# --- Default paths ---
+# --- ALL POSSIBLE PATHS (including your USB) ---
 POSSIBLE_PATHS=(
-"$USB_PATH"
+"/media/ubuntu/5945a0d2-a7ce-406a-a25d-20fa70dce945/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+"/media/$USER/5945a0d2-a7ce-406a-a25d-20fa70dce945/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+"/media/$USER/*/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+"/run/media/$USER/*/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "$HOME/.steam/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "$HOME/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 )
 
 GMOD_LUA=""
+
+# --- Find valid path ---
 for path in "${POSSIBLE_PATHS[@]}"; do
-    if [ -d "$path" ]; then
-        GMOD_LUA="$path"
-        break
-    fi
+    for real in $path; do
+        if [ -d "$real" ]; then
+            GMOD_LUA="$real"
+            break 2
+        fi
+    done
 done
 
 if [ -z "$GMOD_LUA" ]; then
-    echo "[ERROR] Could not find GMod folder"
-    echo "Check your USB path!"
+    echo "[ERROR] Could not find GMod lua folder"
     exit 1
 fi
 
@@ -31,11 +34,11 @@ echo "[OK] Using: $GMOD_LUA"
 FILE="$GMOD_LUA/_tool.lua"
 mkdir -p "$GMOD_LUA"
 
-# --- Better detection ---
+# --- Detect running game ---
 PID=$(pgrep -f "hl2|gmod|Garry")
 
 if [ -z "$PID" ]; then
-    echo "[WARNING] Could not detect GMod (still continuing)"
+    echo "[WARNING] Could not detect GMod (continuing anyway)"
 else
     echo "[OK] GMod running (PID: $PID)"
 fi
@@ -55,7 +58,7 @@ run_gmod() {
     fi
 }
 
-# --- Stop ---
+# --- Stop script ---
 stop_gmod() {
     if command -v xdotool >/dev/null 2>&1; then
         xdotool key grave
@@ -66,74 +69,82 @@ stop_gmod() {
     fi
 }
 
+# --- Create base Lua file if missing ---
+if [ ! -f "$FILE" ]; then
+cat > "$FILE" << 'EOF'
+if CLIENT then
+    print("[TOOL] Loaded")
+
+    local HOOK = "Tool_Main"
+
+    hook.Remove("Think", HOOK)
+
+    hook.Add("Think", HOOK, function()
+        -- WRITE YOUR CODE HERE
+    end)
+
+    concommand.Add("tool_stop", function()
+        hook.Remove("Think", HOOK)
+        print("[TOOL] Stopped")
+    end)
+
+    hook.Add("InitPostEntity", "Tool_UI", function()
+        local f = vgui.Create("DFrame")
+        f:SetSize(200,100)
+        f:SetPos(50,50)
+        f:SetTitle("Lua Tool")
+        f:MakePopup()
+
+        local b = vgui.Create("DButton", f)
+        b:SetSize(160,40)
+        b:SetPos(20,40)
+        b:SetText("STOP SCRIPT")
+
+        b.DoClick = function()
+            RunConsoleCommand("tool_stop")
+        end
+    end)
+end
+EOF
+fi
+
 # --- Menu ---
 while true; do
     echo ""
-    echo "====== GMOD TOOL ======"
-    echo "1) Nano Editor"
-    echo "2) Number Tool"
-    echo "3) START Script"
-    echo "4) STOP Script"
-    echo "5) Exit"
-    echo "======================="
+    echo "====== GMOD LUA TOOL ======"
+    echo "1) Script"
+    echo "2) START Script"
+    echo "3) STOP Script"
+    echo "4) Exit"
+    echo "==========================="
     read -p "Select> " CHOICE
 
     case $CHOICE in
 
         1)
+            echo "[Opening script in nano...]"
             nano "$FILE"
         ;;
 
         2)
-            read -p "Enter number: " VAL
-
-            if ! [[ "$VAL" =~ ^[0-9]+$ ]]; then
-                echo "[!] Invalid number"
-                continue
-            fi
-
-cat > "$FILE" << EOF
-if CLIENT then
-    print("[NUMBER TOOL] $VAL")
-
-    local HOOK = "Tool_Num"
-    hook.Remove("Think", HOOK)
-
-    hook.Add("Think", HOOK, function()
-        local ply = LocalPlayer()
-        if IsValid(ply) then
-            ply:SetWalkSpeed($VAL)
-            ply:SetRunSpeed($((VAL*2)))
-            ply:SetJumpPower($((VAL/2)))
-        end
-    end)
-
-    concommand.Add("tool_stop", function()
-        hook.Remove("Think", HOOK)
-        print("[STOPPED]")
-    end)
-end
-EOF
-
-            run_gmod
-        ;;
-
-        3)
+            echo "[Starting script...]"
             stop_gmod
             sleep 0.3
             run_gmod
         ;;
 
-        4)
+        3)
+            echo "[Stopping script...]"
             stop_gmod
         ;;
 
-        5)
+        4)
+            echo "[Exiting]"
             exit 0
         ;;
 
         *)
-            echo "Invalid option"
+            echo "[!] Invalid option"
         ;;
 
     esac
