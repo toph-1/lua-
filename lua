@@ -2,10 +2,9 @@
 
 echo "[GMod Tool Starting...]"
 
-# --- ALL POSSIBLE PATHS (including your USB) ---
+# --- PATHS ---
 POSSIBLE_PATHS=(
 "/media/ubuntu/5945a0d2-a7ce-406a-a25d-20fa70dce945/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
-"/media/$USER/5945a0d2-a7ce-406a-a25d-20fa70dce945/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "/media/$USER/*/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "/run/media/$USER/*/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
 "$HOME/.steam/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
@@ -14,7 +13,6 @@ POSSIBLE_PATHS=(
 
 GMOD_LUA=""
 
-# --- Find valid path ---
 for path in "${POSSIBLE_PATHS[@]}"; do
     for real in $path; do
         if [ -d "$real" ]; then
@@ -25,62 +23,50 @@ for path in "${POSSIBLE_PATHS[@]}"; do
 done
 
 if [ -z "$GMOD_LUA" ]; then
-    echo "[ERROR] Could not find GMod lua folder"
+    echo "[ERROR] GMod path not found"
     exit 1
 fi
 
 echo "[OK] Using: $GMOD_LUA"
 
 FILE="$GMOD_LUA/_tool.lua"
-mkdir -p "$GMOD_LUA"
 
-# --- Detect running game ---
-PID=$(pgrep -f "hl2|gmod|Garry")
-
-if [ -z "$PID" ]; then
-    echo "[WARNING] Could not detect GMod (continuing anyway)"
-else
-    echo "[OK] GMod running (PID: $PID)"
+# --- REQUIRE xdotool ---
+if ! command -v xdotool >/dev/null 2>&1; then
+    echo "[ERROR] xdotool is REQUIRED"
+    echo "Install it with: sudo apt install xdotool"
+    exit 1
 fi
 
 # --- Run script ---
 run_gmod() {
-    if command -v xdotool >/dev/null 2>&1; then
-        xdotool search --name "Garry" windowactivate 2>/dev/null
-        sleep 0.3
-        xdotool key grave
-        sleep 0.2
-        xdotool type "lua_openscript_cl autorun/_tool.lua"
-        xdotool key Return
-    else
-        echo "[!] Run in console:"
-        echo "lua_openscript_cl autorun/_tool.lua"
-    fi
+    xdotool search --name "Garry" windowactivate 2>/dev/null
+    sleep 0.5
+    xdotool key grave
+    sleep 0.2
+    xdotool type "lua_openscript_cl autorun/_tool.lua"
+    xdotool key Return
 }
 
 # --- Stop script ---
 stop_gmod() {
-    if command -v xdotool >/dev/null 2>&1; then
-        xdotool key grave
-        xdotool type "tool_stop"
-        xdotool key Return
-    else
-        echo "Run in console: tool_stop"
-    fi
+    xdotool key grave
+    xdotool type "tool_stop"
+    xdotool key Return
 }
 
-# --- Create base Lua file if missing ---
-if [ ! -f "$FILE" ]; then
+# --- FORCE TEST SCRIPT (so we know it works) ---
 cat > "$FILE" << 'EOF'
 if CLIENT then
-    print("[TOOL] Loaded")
+    print("[TOOL] SCRIPT RAN")
 
-    local HOOK = "Tool_Main"
-
+    local HOOK = "Tool_Test"
     hook.Remove("Think", HOOK)
 
     hook.Add("Think", HOOK, function()
-        -- WRITE YOUR CODE HERE
+        if math.random() > 0.999 then
+            print("[TOOL] Running...")
+        end
     end)
 
     concommand.Add("tool_stop", function()
@@ -98,7 +84,7 @@ if CLIENT then
         local b = vgui.Create("DButton", f)
         b:SetSize(160,40)
         b:SetPos(20,40)
-        b:SetText("STOP SCRIPT")
+        b:SetText("STOP")
 
         b.DoClick = function()
             RunConsoleCommand("tool_stop")
@@ -106,45 +92,36 @@ if CLIENT then
     end)
 end
 EOF
-fi
+
+echo "[INFO] Test script written"
 
 # --- Menu ---
 while true; do
     echo ""
-    echo "====== GMOD LUA TOOL ======"
     echo "1) Script"
-    echo "2) START Script"
-    echo "3) STOP Script"
+    echo "2) START"
+    echo "3) STOP"
     echo "4) Exit"
-    echo "==========================="
     read -p "Select> " CHOICE
 
     case $CHOICE in
 
         1)
-            echo "[Opening script in nano...]"
             nano "$FILE"
         ;;
 
         2)
-            echo "[Starting script...]"
             stop_gmod
             sleep 0.3
             run_gmod
         ;;
 
         3)
-            echo "[Stopping script...]"
             stop_gmod
         ;;
 
         4)
-            echo "[Exiting]"
             exit 0
-        ;;
-
-        *)
-            echo "[!] Invalid option"
         ;;
 
     esac
