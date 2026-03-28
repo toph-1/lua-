@@ -1,1 +1,143 @@
-#!/bin/bashGMOD_LUA="$HOME/.steam/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"FILE="$GMOD_LUA/_nano_exec.lua"mkdir -p "$GMOD_LUA"# Check if GMod is runningPID=$(pgrep -f "hl2_linux.*garrysmod")if [ -z "$PID" ]; thenecho "[!] Garry's Mod is not running."echo "Start singleplayer first."exit 1fiecho "[+] GMod detected (PID: $PID)"# Create base file if missingif [ ! -f "$FILE" ]; thencat > "$FILE" << 'EOF'if CLIENT thenprint("[NANO EXEC] Loaded")local HOOK_NAME = "NanoExec_Main"-- Example code (edit this in nano)hook.Add("Think", HOOK_NAME, function()local ply = LocalPlayer()if IsValid(ply) thenply:SetWalkSpeed(400)endend)-- STOP commandconcommand.Add("nano_stop", function()hook.Remove("Think", HOOK_NAME)print("[NANO EXEC] Stopped script")end)-- STOP button UIhook.Add("InitPostEntity", "NanoExec_UI", function()local frame = vgui.Create("DFrame")frame:SetSize(200, 100)frame:SetPos(50, 50)frame:SetTitle("Nano Control")frame:MakePopup()local btn = vgui.Create("DButton", frame)btn:SetSize(160, 40)btn:SetPos(20, 40)btn:SetText("STOP SCRIPT")btn.DoClick = function()RunConsoleCommand("nano_stop")endend)endEOFfi# Open nano editornano "$FILE"echo "[+] Saved. Executing in GMod..."# Run script in GModif command -v xdotool >/dev/null 2>&1; thenxdotool key gravexdotool type "lua_openscript_cl autorun/_nano_exec.lua"xdotool key Returnelseecho "[!] Run this in GMod console:"echo "lua_openscript_cl autorun/_nano_exec.lua"fiecho "[+] Done!"
+#!/bin/bash
+
+echo "[GMod Nano Tool Starting...]"
+
+# --- Find GMod path ---
+POSSIBLE_PATHS=(
+"$HOME/.steam/steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+"$HOME/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/lua/autorun"
+)
+
+GMOD_LUA=""
+for path in "${POSSIBLE_PATHS[@]}"; do
+    if [ -d "$path" ]; then
+        GMOD_LUA="$path"
+        break
+    fi
+done
+
+if [ -z "$GMOD_LUA" ]; then
+    echo "[ERROR] Could not find GMod install"
+    exit 1
+fi
+
+FILE="$GMOD_LUA/_tool.lua"
+mkdir -p "$GMOD_LUA"
+
+# --- Check if GMod running ---
+PID=$(pgrep -f "hl2_linux")
+
+if [ -z "$PID" ]; then
+    echo "[ERROR] Garry's Mod is not running"
+    exit 1
+fi
+
+echo "[OK] GMod detected"
+
+# --- Run script in GMod ---
+run_gmod() {
+    if command -v xdotool >/dev/null 2>&1; then
+        xdotool search --name "Garry's Mod" windowactivate 2>/dev/null
+        sleep 0.3
+        xdotool key grave
+        sleep 0.2
+        xdotool type "lua_openscript_cl autorun/_tool.lua"
+        xdotool key Return
+    else
+        echo "[!] Run in GMod console:"
+        echo "lua_openscript_cl autorun/_tool.lua"
+    fi
+}
+
+# --- Stop script ---
+stop_gmod() {
+    if command -v xdotool >/dev/null 2>&1; then
+        xdotool key grave
+        xdotool type "tool_stop"
+        xdotool key Return
+    else
+        echo "Run in console: tool_stop"
+    fi
+}
+
+# --- Create Lua file if missing ---
+if [ ! -f "$FILE" ]; then
+cat > "$FILE" << 'EOF'
+if CLIENT then
+    print("[TOOL] Loaded")
+
+    local HOOK = "Tool_Main"
+
+    hook.Remove("Think", HOOK)
+
+    hook.Add("Think", HOOK, function()
+        -- WRITE YOUR CODE HERE
+    end)
+
+    concommand.Add("tool_stop", function()
+        hook.Remove("Think", HOOK)
+        print("[TOOL] Stopped")
+    end)
+
+    hook.Add("InitPostEntity", "Tool_UI", function()
+        local f = vgui.Create("DFrame")
+        f:SetSize(200,100)
+        f:SetPos(50,50)
+        f:SetTitle("Lua Tool")
+        f:MakePopup()
+
+        local b = vgui.Create("DButton", f)
+        b:SetSize(160,40)
+        b:SetPos(20,40)
+        b:SetText("STOP SCRIPT")
+
+        b.DoClick = function()
+            RunConsoleCommand("tool_stop")
+        end
+    end)
+end
+EOF
+fi
+
+# --- Menu ---
+while true; do
+    echo ""
+    echo "====== GMOD LUA TOOL ======"
+    echo "1) Edit Lua Script (nano)"
+    echo "2) START Script"
+    echo "3) STOP Script"
+    echo "4) Exit"
+    echo "==========================="
+    read -p "Select> " CHOICE
+
+    case $CHOICE in
+
+        1)
+            echo "[Opening nano...]"
+            nano "$FILE"
+            echo "[Saved]"
+        ;;
+
+        2)
+            echo "[Starting script...]"
+            stop_gmod
+            sleep 0.3
+            run_gmod
+        ;;
+
+        3)
+            echo "[Stopping script...]"
+            stop_gmod
+        ;;
+
+        4)
+            echo "[Exiting]"
+            exit 0
+        ;;
+
+        *)
+            echo "[!] Invalid option"
+        ;;
+
+    esac
+done
